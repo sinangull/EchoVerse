@@ -1,0 +1,24 @@
+# --- GENEL ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- PYTHON (Backend) ---
+backend/__pycache__/
+backend/*.pyc
+backend/venv/
+backend/.env
+backend/env/
+
+# --- FLUTTER (Frontend) ---
+echoverse/.dart_tool/
+echoverse/.pub/
+echoverse/build/
+echoverse/.flutter-plugins
+echoverse/.flutter-plugins-dependencies
+echoverse/.packages
+
+# --- GÜVENLİK (Çok Önemli) ---
+.env
+api_keys.txt
+*.key
