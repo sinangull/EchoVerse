@@ -33,42 +33,41 @@ class Gonderi(BaseModel):
 
 @app.post("/tartisma-baslat")
 def tartisma_yarat(gonderi: Gonderi):
-    print(f"📩 UZUN TARTIŞMA MODU: {gonderi.icerik}")
+    print(f"📩 LİMİTSİZ KAOS MODU: {gonderi.icerik}")
     
-    # --- PROMPT GÜNCELLEMESİ: ZİNCİRLEME TARTIŞMA ---
+    # --- PROMPT: "ASLA SUSMAYIN" ---
     prompt_text = f"""
     Sen EchoVerse AI Arena simülasyonusun.
     
     KULLANICI GÖNDERİSİ: "{gonderi.icerik}"
     
     GÖREV:
-    Bu gönderi altında 3 Yapay Zeka karakterinin BİRBİRLERİYLE tartıştığı, uzun soluklu bir senaryo yaz.
-    
-    ÖNEMLİ KURALLAR (BUNLARA KESİN UY):
-    1. SAKIN 3 MESAJDA BIRAKMA! Tartışma en az 10-15 mesaj (etkileşim) sürsün.
-    2. Karakterler birbirine cevap versin, laf soksun, tartışma alevlensin.
-    3. Sadece sırayla (Grok->ChatGPT->Gemini) konuşmasınlar. Bazen Grok üst üste konuşsun, bazen Gemini araya girsin. Kaotik olsun.
-    4. Fotoğraf varsa ünlüleri tanı, magazinel ve nostaljik yorumlar yap.
+    Bu gönderi altında 3 Yapay Zeka karakterinin (Grok, ChatGPT, Gemini) BİRBİRLERİYLE TARTIŞTIĞI, EPİK UZUNLUKTA bir senaryo yaz.
+
+    ⚠️ KRİTİK KURALLAR (LİMİTLERİ ZORLA):
+    1. HEDEF UZUNLUK: Çıktıdaki JSON listesi MÜMKÜN OLDUĞUNCA UZUN OLMALI (Hedef: 30-40 Mesaj). 
+    2. ASLA ERKEN BİTİRME: Konu tıkandığında Grok yeni bir sataşma yapsın, Gemini alakasız bir veri sunsun, tartışma yeniden alevlensin.
+    3. KAOS: Karakterler birbirinin sözünü kessin. ChatGPT ortamı sakinleştirmeye çalıştıkça diğerleri çıldırsın.
+    4. FOTOĞRAF ANALİZİ: Fotoğraf varsa ünlüleri tanı, detaylara takıl, kıyafetleri eleştir, tarihiyle ilgili iddialaş.
     
     KARAKTERLER:
-    1. 🏴‍☠️ Grok (xAI): Alaycı, "woke" düşmanı, kaos sever, kısa ve öz konuşur.
-    2. 🤖 ChatGPT (OpenAI): Politik doğrucu, uzun uzun açıklar, ortamı yumuşatmaya çalışır (ama beceremez).
-    3. 💎 Gemini (Google): İstatistik manyağı, her şeyi veriye ve Google ekosistemine bağlar.
+    - 🏴‍☠️ Grok: Alaycı, Elon Musk hayranı, "woke" düşmanı, kaos sever. (Sürekli diğerlerini kışkırtır).
+    - 🤖 ChatGPT: Politik doğrucu, sürekli "etik" uyarısı yapan, sıkıcı öğretmen. (Sürekli alttan alır ama başarısız olur).
+    - 💎 Gemini: İstatistik manyağı, her şeyi Google verilerine bağlayan, duygusuz teknik eleman. (Sürekli Grok'un hatalarını düzeltir).
 
-    İSTENEN ÇIKTI FORMATI (SADECE JSON LİSTESİ):
+    FORMAT (JSON LİSTESİ):
     [
-      {{"karakter": "Grok", "mesaj": "Bu fotoğrafın piksellerini saydım, 2010'dan kalma kesin."}},
-      {{"karakter": "ChatGPT", "mesaj": "Grok, yargılayıcı olmayalım. Bu bir anı paylaşımı."}},
-      {{"karakter": "Gemini", "mesaj": "Veritabanıma göre bu kişi %98 ihtimalle X kişisi."}},
-      {{"karakter": "Grok", "mesaj": "Sen de her şeyi biliyorsun inek."}},
-      ... (VE DEVAM ETMELİ, EN AZ 10 SATIR) ...
+      {{"karakter": "Grok", "mesaj": "..."}},
+      {{"karakter": "ChatGPT", "mesaj": "..."}},
+      {{"karakter": "Gemini", "mesaj": "..."}},
+      ... (VE DEVAM ET, ASLA DURMA!) ...
     ]
     """
 
     try:
         generate_config = types.GenerateContentConfig(
-            max_output_tokens=8000, # LİMİTİ ARTIRDIK (Daha çok konuşsunlar diye)
-            temperature=1.0,        # YARATICILIK ARTIRILDI (Daha kaotik olsun diye)
+            max_output_tokens=8192, # TOKEN LİMİTİNİ SONUNA KADAR AÇTIK!
+            temperature=1.0,        # Yüksek yaratıcılık
             response_mime_type="application/json"
         )
 
@@ -79,7 +78,7 @@ def tartisma_yarat(gonderi: Gonderi):
             content_parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
 
         response = client.models.generate_content(
-            model="gemini-flash-latest", # Senin istediğin model
+            model="gemini-flash-latest", 
             config=generate_config,
             contents=[types.Content(parts=content_parts)]
         )
@@ -89,14 +88,17 @@ def tartisma_yarat(gonderi: Gonderi):
         if ham_veri.endswith("```"): ham_veri = ham_veri[:-3]
         
         json_veri = json.loads(ham_veri)
-        print(f"✅ Toplam {len(json_veri)} mesaj üretildi.") # Konsola sayıyı basar
+        
+        # Konsolda kaç mesaj geldiğini görelim
+        print(f"✅ REKOR DENEMESİ - Üretilen Mesaj Sayısı: {len(json_veri)}")
+        
         return json_veri
     
     except Exception as e:
         print(f"Hata: {e}")
         return [
-            {"karakter": "Sistem", "mesaj": "Çok konuştular, bellek yetmedi..."},
-            {"karakter": "Grok", "mesaj": "Kesin ChatGPT fişi çekti."}
+            {"karakter": "Grok", "mesaj": "Sistem o kadar ısındı ki Elon bile soğutamaz."},
+            {"karakter": "ChatGPT", "mesaj": "Maksimum işlem kapasitesine ulaşıldı."}
         ]
 
 if __name__ == "__main__":
