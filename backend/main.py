@@ -73,8 +73,6 @@ def tartisma_yarat(gonderi: Gonderi):
             image_bytes = base64.b64decode(gonderi.resim_base64)
             content_parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
 
-        # --- İŞTE O SAĞLAM MODEL: gemini-1.5-flash ---
-        # (gemini-flash-latest yerine direkt sürüm adını yazmak daha garantidir)
         response = client.models.generate_content(
             model="gemini-flash-latest", 
             config=generate_config,
