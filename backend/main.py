@@ -13,7 +13,7 @@ app = FastAPI()
 API_KEY = os.environ.get("GOOGLE_API_KEY")
 
 if not API_KEY:
-    print("UYARI: API Anahtarı yok!")
+    print("UYARI: API Anahtarı bulunamadı!")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,9 +31,9 @@ class Gonderi(BaseModel):
 
 @app.post("/tartisma-baslat")
 def tartisma_yarat(gonderi: Gonderi):
-    print(f"📩 MAG: {gonderi.icerik}")
+    # DİKKAT: Loglarda bu yazıyı görmeliyiz!
+    print(f"📩 MAG MODU: {gonderi.icerik}")
     
-    # --- GÜNCELLENMİŞ PROMPT: MAGAZİN VE KİMLİK TESPİTİ ODAKLI ---
     prompt_text = f"""
     Sen EchoVerse AI Arena simülasyonusun.
     
@@ -41,31 +41,19 @@ def tartisma_yarat(gonderi: Gonderi):
     
     ÖZEL GÖREV (FOTOĞRAF ANALİZİ):
     Eğer bir fotoğraf varsa:
-    1. Fotoğraftaki kişilerin kim olduğunu (Türk ünlüler, oyuncular, şarkıcılar dahil) tespit etmeye çalış.
-    2. "Oğuzhan Koç", "Zeynep Koçak", "Eser Yenenler" gibi isimleri tanırsan MUTLAKA kullan.
-    3. Fotoğraf eski bile olsa bağlamdan çıkarmaya çalış.
+    1. Fotoğraftaki kişilerin kim olduğunu (Türk ünlüler, oyuncular dahil) tespit etmeye çalış.
+    2. Eğer tanırsan İSİMLERİNİ KULLANARAK yorum yap.
     
-    TARTIŞMA FORMATI:
-    Aşağıdaki 3 yapay zeka karakteri bu fotoğrafı tartışacak:
+    KARAKTERLER:
+    1. 🏴‍☠️ Grok (xAI): Magazinel, alaycı, sivri dilli. (Örn: "Oğuzhan Koç mu o? Eski hali daha iyiydi.")
+    2. 🤖 ChatGPT (OpenAI): Diplomatik, tarihsel bilgi veren. (Örn: "Bu fotoğraf 2010'lu yıllardan olabilir.")
+    3. 💎 Gemini (Google): Veri odaklı, detaycı. (Örn: "Yüz hatları %90 oranında Zeynep Koçak ile eşleşiyor.")
 
-    1. 🏴‍☠️ Grok (xAI):
-       - Acımasız, dalgacı, "woke" karşıtı.
-       - Eğer fotoğraf eski veya kalitesizse "Bu ne piksel piksel?" diye dalga geçsin.
-       - Ünlüleri tanırsa onlarla ilgili magazinel bir laf sorsun.
-       
-    2. 🤖 ChatGPT (OpenAI):
-       - Diplomatik, ansiklopedik bilgi veren.
-       - "Bu fotoğraf muhtemelen 2010'lu yıllardan..." gibi tarihsel bağlam kurmaya çalışsın.
-       
-    3. 💎 Gemini (Google - Sen):
-       - Detaycı, veri odaklı.
-       - "Yüz hatları %85 oranında şuna benziyor..." gibi teknik konuşsun.
-
-    İSTENEN ÇIKTI (SADECE JSON):
+    İSTENEN ÇIKTI (SADECE JSON LİSTESİ):
     [
-      {{"karakter": "Grok", "mesaj": "Ooo bu Oğuzhan Koç değil mi? O zamanlar daha saçları varmış 🤣"}},
-      {{"karakter": "ChatGPT", "mesaj": "Grok, kişisel yorum yapmayalım. Bu fotoğraf BKM Mutfak dönemine ait olabilir."}},
-      {{"karakter": "Gemini", "mesaj": "Veritabanıma göre bu ikili 'Çok Güzel Hareketler Bunlar' döneminde popülerdi."}}
+      {{"karakter": "Grok", "mesaj": "..."}},
+      {{"karakter": "ChatGPT", "mesaj": "..."}},
+      {{"karakter": "Gemini", "mesaj": "..."}}
     ]
     """
 
@@ -97,9 +85,9 @@ def tartisma_yarat(gonderi: Gonderi):
     except Exception as e:
         print(f"Hata: {e}")
         return [
-            {"karakter": "Grok", "mesaj": "Sistemi bozdun tebrikler..."},
-            {"karakter": "ChatGPT", "mesaj": "Sunucu yanıt vermedi."},
-            {"karakter": "Gemini", "mesaj": "Teknik arıza."}
+            {"karakter": "Grok", "mesaj": "Sunucu hatası, kesin ChatGPT kablosuna bastı."},
+            {"karakter": "ChatGPT", "mesaj": "Üzgünüm, bir sorun oluştu."},
+            {"karakter": "Gemini", "mesaj": "Hata kodu: 500."}
         ]
 
 if __name__ == "__main__":
