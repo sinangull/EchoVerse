@@ -33,37 +33,42 @@ class Gonderi(BaseModel):
 
 @app.post("/tartisma-baslat")
 def tartisma_yarat(gonderi: Gonderi):
-    print(f"📩 SAĞLAM MOD (1.5 Flash): {gonderi.icerik}")
+    print(f"📩 UZUN TARTIŞMA MODU: {gonderi.icerik}")
     
-    # --- PROMPT: AI ARENA & MAGAZİN ---
+    # --- PROMPT GÜNCELLEMESİ: ZİNCİRLEME TARTIŞMA ---
     prompt_text = f"""
-    Sen EchoVerse sosyal medya simülasyonusun.
+    Sen EchoVerse AI Arena simülasyonusun.
     
     KULLANICI GÖNDERİSİ: "{gonderi.icerik}"
     
-    ÖZEL GÖREV (FOTOĞRAF ANALİZİ):
-    Eğer bir fotoğraf varsa:
-    1. Fotoğraftaki kişilerin kim olduğunu (Türk ünlüler, oyuncular, fenomenler dahil) tespit etmeye çalış.
-    2. Eğer tanırsan İSİMLERİNİ KULLANARAK yorum yap. (Örn: "Bu Oğuzhan Koç değil mi?")
-    3. Fotoğraf eskiyse nostalji yap.
+    GÖREV:
+    Bu gönderi altında 3 Yapay Zeka karakterinin BİRBİRLERİYLE tartıştığı, uzun soluklu bir senaryo yaz.
+    
+    ÖNEMLİ KURALLAR (BUNLARA KESİN UY):
+    1. SAKIN 3 MESAJDA BIRAKMA! Tartışma en az 10-15 mesaj (etkileşim) sürsün.
+    2. Karakterler birbirine cevap versin, laf soksun, tartışma alevlensin.
+    3. Sadece sırayla (Grok->ChatGPT->Gemini) konuşmasınlar. Bazen Grok üst üste konuşsun, bazen Gemini araya girsin. Kaotik olsun.
+    4. Fotoğraf varsa ünlüleri tanı, magazinel ve nostaljik yorumlar yap.
     
     KARAKTERLER:
-    1. 🏴‍☠️ Grok (xAI): Magazinel, alaycı, sivri dilli. (Örn: "Zeynep Koçak ile Oğuzhan Koç mu? O zamanlar iyiydi...")
-    2. 🤖 ChatGPT (OpenAI): Diplomatik, tarihsel bilgi veren. (Örn: "Bu fotoğraf muhtemelen BKM Mutfak dönemine ait.")
-    3. 💎 Gemini (Google): Veri odaklı, detaycı. (Örn: "Görsel analize göre yıl 2010 civarı.")
+    1. 🏴‍☠️ Grok (xAI): Alaycı, "woke" düşmanı, kaos sever, kısa ve öz konuşur.
+    2. 🤖 ChatGPT (OpenAI): Politik doğrucu, uzun uzun açıklar, ortamı yumuşatmaya çalışır (ama beceremez).
+    3. 💎 Gemini (Google): İstatistik manyağı, her şeyi veriye ve Google ekosistemine bağlar.
 
-    İSTENEN ÇIKTI (SADECE JSON LİSTESİ):
+    İSTENEN ÇIKTI FORMATI (SADECE JSON LİSTESİ):
     [
-      {{"karakter": "Grok", "mesaj": "..."}},
-      {{"karakter": "ChatGPT", "mesaj": "..."}},
-      {{"karakter": "Gemini", "mesaj": "..."}}
+      {{"karakter": "Grok", "mesaj": "Bu fotoğrafın piksellerini saydım, 2010'dan kalma kesin."}},
+      {{"karakter": "ChatGPT", "mesaj": "Grok, yargılayıcı olmayalım. Bu bir anı paylaşımı."}},
+      {{"karakter": "Gemini", "mesaj": "Veritabanıma göre bu kişi %98 ihtimalle X kişisi."}},
+      {{"karakter": "Grok", "mesaj": "Sen de her şeyi biliyorsun inek."}},
+      ... (VE DEVAM ETMELİ, EN AZ 10 SATIR) ...
     ]
     """
 
     try:
         generate_config = types.GenerateContentConfig(
-            max_output_tokens=2000, 
-            temperature=0.8,
+            max_output_tokens=8000, # LİMİTİ ARTIRDIK (Daha çok konuşsunlar diye)
+            temperature=1.0,        # YARATICILIK ARTIRILDI (Daha kaotik olsun diye)
             response_mime_type="application/json"
         )
 
@@ -74,7 +79,7 @@ def tartisma_yarat(gonderi: Gonderi):
             content_parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
 
         response = client.models.generate_content(
-            model="gemini-flash-latest", 
+            model="gemini-flash-latest", # Senin istediğin model
             config=generate_config,
             contents=[types.Content(parts=content_parts)]
         )
@@ -82,15 +87,16 @@ def tartisma_yarat(gonderi: Gonderi):
         ham_veri = response.text.strip()
         if ham_veri.startswith("```json"): ham_veri = ham_veri[7:]
         if ham_veri.endswith("```"): ham_veri = ham_veri[:-3]
-            
-        return json.loads(ham_veri)
+        
+        json_veri = json.loads(ham_veri)
+        print(f"✅ Toplam {len(json_veri)} mesaj üretildi.") # Konsola sayıyı basar
+        return json_veri
     
     except Exception as e:
         print(f"Hata: {e}")
         return [
-            {"karakter": "Grok", "mesaj": "Sistemde ufak bir arıza var ama ben buradayım!"},
-            {"karakter": "ChatGPT", "mesaj": "Sunucularımız şu an yoğun, lütfen tekrar deneyin."},
-            {"karakter": "Gemini", "mesaj": "Bağlantı hatası tespit edildi. (Kod: 1.5)"}
+            {"karakter": "Sistem", "mesaj": "Çok konuştular, bellek yetmedi..."},
+            {"karakter": "Grok", "mesaj": "Kesin ChatGPT fişi çekti."}
         ]
 
 if __name__ == "__main__":
