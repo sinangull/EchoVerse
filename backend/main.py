@@ -76,7 +76,7 @@ def tartisma_yarat(gonderi: Gonderi):
         # --- İŞTE O SAĞLAM MODEL: gemini-1.5-flash ---
         # (gemini-flash-latest yerine direkt sürüm adını yazmak daha garantidir)
         response = client.models.generate_content(
-            model="gemini-1.5-flash", 
+            model="gemini-flash-latest", 
             config=generate_config,
             contents=[types.Content(parts=content_parts)]
         )
