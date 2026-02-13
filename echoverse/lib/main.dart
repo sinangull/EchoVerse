@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -55,6 +56,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage; 
 
+  // Kendi akış kontrolümüz için
+  bool _isDisposed = false;
+
   final List<String> randomTopics = [
     "Pizzaya ananas konur mu?",
     "Yapay zeka dünyayı ele geçirecek mi?",
@@ -74,41 +78,69 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _initTts();
   }
 
-  Future<void> _initTts() async {
-    await flutterTts.setLanguage("tr-TR");
-    // iOS ve Android için konuşma bitmesini bekleme ayarı
-    await flutterTts.awaitSpeakCompletion(true);
-    
-    // Ses motorunun hazır olduğundan emin olalım
-    await flutterTts.setSpeechRate(0.5); 
-    await flutterTts.setVolume(1.0);
-    await flutterTts.setPitch(1.0);
+  @override
+  void dispose() {
+    _isDisposed = true;
+    flutterTts.stop();
+    super.dispose();
   }
 
-  // --- GELİŞMİŞ SES AYARLARI ---
-  Future<void> _speak(String text, String role) async {
-    if (isMuted) return;
+  Future<void> _initTts() async {
+    await flutterTts.setLanguage("tr-TR");
+    // Web'de awaitSpeakCompletion SORUNLU, o yüzden kapalı tutuyoruz.
+    // Süreyi kendimiz hesaplayacağız.
+    await flutterTts.awaitSpeakCompletion(false);
+  }
+
+  // --- GÜVENLİ KONUŞMA FONKSİYONU ---
+  Future<void> _speakSafe(String text, String role) async {
+    if (isMuted || _isDisposed) return;
 
     double pitch = 1.0;
-    double rate = 0.5; // Web'de 0.5 normal hızdır (0.0 - 1.0 arası)
+    double rate = 1.0; 
 
-    // Karakterlere göre RADİKAL ses değişiklikleri
+    // Karakter Ayarları (HIZLANDIRILMIŞ)
     if (role.toLowerCase().contains("grok")) {
-      pitch = 0.5; // ÇOK KALIN (Erkek Sesi Gibi)
-      rate = 0.6;  // Biraz hızlı
+      pitch = 0.6; // Kalın Ses
+      rate = 1.3;  // Çok Hızlı (Agresif)
     } else if (role.toLowerCase().contains("chatgpt")) {
-      pitch = 1.0; // NORMAL (Haber spikeri gibi)
-      rate = 0.45; // Yavaş ve sakin
+      pitch = 1.0; // Normal Ses
+      rate = 1.0;  // Normal Hız (Ama eskisine göre hızlı)
     } else if (role.toLowerCase().contains("gemini")) {
-      pitch = 1.6; // İNCE (Robotik/Kadın sesi gibi)
-      rate = 0.55; // Orta hızlı
+      pitch = 1.5; // İnce Ses
+      rate = 1.1;  // Hızlı
     }
 
     await flutterTts.setPitch(pitch);
     await flutterTts.setSpeechRate(rate);
     
-    // Konuş ve BİTMESİNİ BEKLE (await burada kritik)
-    await flutterTts.speak(text);
+    // Konuşmayı başlat
+    flutterTts.speak(text);
+
+    // --- DONMAYI ÖNLEYEN MATEMATİKSEL BEKLEME ---
+    // Web TTS motorunu beklemek yerine, metnin uzunluğuna göre
+    // ne kadar süreceğini tahmin edip o kadar bekliyoruz.
+    // Bu sayede "Stop" tuşuna basılsa bile döngü asla donmaz.
+    
+    int charCount = text.length;
+    // Ortalama: 1 karakter ~50-60ms sürer. Hız arttıkça süre azalır.
+    // rate 1.0 ise 60ms, rate 1.3 ise 45ms gibi.
+    int durationMs = (charCount * 60 / rate).round(); 
+    
+    // En az 1 saniye bekleme koyalım ki çok kısa şeyler karışmasın
+    if (durationMs < 1500) durationMs = 1500;
+
+    // Bekleme süresi boyunca (her 100ms'de bir) Mute durumunu kontrol et
+    // Böylece mute'a basınca anında susar ama donmaz.
+    int elapsed = 0;
+    while (elapsed < durationMs) {
+      if (isMuted || _isDisposed) {
+        await flutterTts.stop();
+        break; 
+      }
+      await Future.delayed(const Duration(milliseconds: 100));
+      elapsed += 100;
+    }
   }
 
   void rollDice() {
@@ -177,6 +209,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       messages = [];
       _controller.clear();   
       _selectedImage = null; 
+      // Yeni tartışma başlarken sesi açmayı tercih edebiliriz veya kullanıcı ayarına bırakırız
+      // isMuted = false; 
     });
     
     FocusScope.of(context).unfocus();
@@ -208,47 +242,41 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           isLoading = false;
         });
 
-        // --- TAM SENKRON AKIŞ ---
+        // --- GÜVENLİ AKIŞ DÖNGÜSÜ ---
         for (var msg in incomingMessages) {
-          if (!mounted) return;
+          if (!mounted || _isDisposed) break;
 
-          // 1. Önce "Yazıyor..." göster
+          // 1. Yazıyor Efekti
           setState(() {
             isTyping = true;
             currentTypingRole = msg['karakter'];
           });
           _scrollToBottom();
 
-          // Kısa bir yapay "düşünme" süresi (Doğallık için)
-          await Future.delayed(Duration(milliseconds: 500 + Random().nextInt(500)));
+          // Kısa bekleme
+          await Future.delayed(Duration(milliseconds: 300 + Random().nextInt(300)));
 
-          // 2. Mesaj balonunu ekrana BAS (Ama ses henüz başlamadı)
+          // 2. Mesajı Göster
           setState(() {
             isTyping = false;
             messages.add(msg);
           });
           _scrollToBottom();
 
-          // 3. ŞİMDİ KONUŞ (Ve bitene kadar bekle)
-          // Burada await kullanarak kodun aşağı inmesini engelliyoruz.
-          if (!isMuted) {
-             await _speak(msg['mesaj'], msg['karakter']);
-          } else {
-             // Ses kapalıysa okuma süresi kadar bekle
-             String mesajMetni = msg['mesaj'].toString();
-             int okumaSuresi = mesajMetni.length * 60;
-             if (okumaSuresi < 2000) okumaSuresi = 2000;
-             await Future.delayed(Duration(milliseconds: okumaSuresi));
-          }
+          // 3. Konuş (veya sessizce bekle)
+          // _speakSafe fonksiyonu mute durumunu kendi içinde kontrol eder ve donmaz.
+          await _speakSafe(msg['mesaj'], msg['karakter']);
           
-          // Konuşma bittikten sonra diğer karaktere geçmeden önce minik bir nefes
-          await Future.delayed(const Duration(milliseconds: 500));
+          // Karakterler arası minik es
+          await Future.delayed(const Duration(milliseconds: 200));
         }
 
-        setState(() {
-          showVoting = true;
-        });
-        _scrollToBottom();
+        if (mounted && !_isDisposed) {
+          setState(() {
+            showVoting = true;
+          });
+          _scrollToBottom();
+        }
 
       } else {
         if (!mounted) return;
@@ -285,12 +313,15 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             onPressed: (isLoading || isTyping) ? null : rollDice,
           ),
           IconButton(
+            // SES BUTONU: Basınca anında durdurur ve durumu günceller
             icon: Icon(isMuted ? Icons.volume_off : Icons.volume_up, color: isMuted ? Colors.grey : Colors.greenAccent),
-            onPressed: () {
+            onPressed: () async {
               setState(() {
                 isMuted = !isMuted;
-                if (isMuted) flutterTts.stop();
               });
+              if (isMuted) {
+                await flutterTts.stop(); // Anında sustur
+              }
             },
           ),
         ],
