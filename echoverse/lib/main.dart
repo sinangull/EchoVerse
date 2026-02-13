@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math'; // Rastgelelik için ekledik
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -18,7 +19,7 @@ class EchoVerseApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'EchoVerse AI Arena',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0F0F0F), // Derin Siyah
+        scaffoldBackgroundColor: const Color(0xFF0F0F0F),
         primaryColor: const Color(0xFF6C63FF),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFF1A1A1A),
@@ -54,22 +55,26 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   // --- Yardımcı: Karakter Renkleri ---
   Color getRoleColor(String? role) {
     if (role == null) return Colors.grey;
-    if (role.contains("Grok")) return const Color(0xFFFFFFFF); // Beyaz (X Stili)
-    if (role.contains("ChatGPT")) return const Color(0xFF10A37F); // OpenAI Yeşili
-    if (role.contains("Gemini")) return const Color(0xFF4285F4); // Google Mavisi
-    return Colors.purpleAccent; // Varsayılan
+    String r = role.toLowerCase();
+    
+    if (r.contains("grok")) return const Color(0xFFFFFFFF);
+    if (r.contains("chatgpt")) return const Color(0xFF10A37F);
+    if (r.contains("gemini")) return const Color(0xFF4285F4);
+    
+    if (r.contains("destekçi")) return Colors.greenAccent;
+    if (r.contains("karşıt")) return Colors.redAccent;
+    return Colors.purpleAccent;
   }
 
   // --- Yardımcı: Karakter İkonları ---
   Widget getRoleIcon(String? role) {
-    if (role == null) return const Icon(Icons.error);
-    if (role.contains("Grok")) return const Icon(Icons.close, color: Colors.black, weight: 900); // X Logosu niyetine
-    if (role.contains("ChatGPT")) return const Icon(Icons.smart_toy_outlined, color: Colors.white);
-    if (role.contains("Gemini")) return const Icon(Icons.auto_awesome, color: Colors.white);
-    return const Icon(Icons.person);
+    String r = role?.toLowerCase() ?? "";
+    if (r.contains("grok")) return const Icon(Icons.close, color: Colors.black, size: 20);
+    if (r.contains("chatgpt")) return const Icon(Icons.bolt, color: Colors.white, size: 20);
+    if (r.contains("gemini")) return const Icon(Icons.auto_awesome, color: Colors.white, size: 20);
+    return const Icon(Icons.person, color: Colors.white, size: 20);
   }
 
-  // --- Otomatik Kaydırma ---
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
@@ -99,14 +104,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     setState(() {
       isLoading = true;
-      messages = []; // Yeni tartışma için temizle
+      messages = [];
       _controller.clear();   
       _selectedImage = null; 
     });
     
     FocusScope.of(context).unfocus();
 
-    // API Adresini kontrol et!
     final url = Uri.parse('https://echoverse-api-8r8z.onrender.com/tartisma-baslat');
 
     try {
@@ -126,7 +130,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       );
 
       if (response.statusCode == 200) {
-        // UTF-8 decode işlemi (Türkçe karakterler için önemli)
         final decodedBody = utf8.decode(response.bodyBytes);
         final List<dynamic> incomingMessages = jsonDecode(decodedBody);
 
@@ -135,7 +138,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           isLoading = false;
         });
 
-        // --- SİNEMATİK AKIŞ DÖNGÜSÜ ---
+        // --- SİNEMATİK AKIŞ DÖNGÜSÜ (YAVAŞLATILMIŞ VERSİYON) ---
         for (var msg in incomingMessages) {
           if (!mounted) return;
 
@@ -145,11 +148,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           });
           _scrollToBottom();
 
-          // Okuma hızı simülasyonu
+          // --- YENİ HIZ AYARI BURADA ---
           String mesajMetni = msg['mesaj'].toString();
-          int beklemeSuresi = mesajMetni.length * 40; // Biraz hızlandırdık
-          if (beklemeSuresi < 1000) beklemeSuresi = 1000;
-          if (beklemeSuresi > 3000) beklemeSuresi = 3000;
+          
+          // Karakter başına 60ms (Eskiden 40ms idi) -> Daha yavaş okuma
+          int beklemeSuresi = mesajMetni.length * 60; 
+          
+          // Rastgelelik ekle (Her mesaj robot gibi aynı hızda gelmesin)
+          // 0 ile 1000ms arasında rastgele bir süre ekliyoruz.
+          beklemeSuresi += Random().nextInt(1000);
+
+          // Minimum bekleme: 2 saniye (Okumaya vakit kalsın)
+          if (beklemeSuresi < 2000) beklemeSuresi = 2000;
+          
+          // Maksimum bekleme: 6 saniye (Çok da baymasın)
+          if (beklemeSuresi > 6000) beklemeSuresi = 6000;
 
           await Future.delayed(Duration(milliseconds: beklemeSuresi));
 
@@ -160,7 +173,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           });
           _scrollToBottom();
           
-          await Future.delayed(const Duration(milliseconds: 300)); 
+          // İki mesaj arasında da minik bir nefes payı (500ms ile 1000ms arası)
+          await Future.delayed(Duration(milliseconds: 500 + Random().nextInt(500))); 
         }
 
       } else {
@@ -186,7 +200,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: const [
-            Icon(Icons.hub, color: Colors.white), // EchoVerse Logosu
+            Icon(Icons.hub, color: Colors.white),
             SizedBox(width: 8),
             Text("AI ARENA", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           ],
@@ -194,7 +208,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       ),
       body: Column(
         children: [
-          // --- Mesaj Listesi ---
           Expanded(
             child: messages.isEmpty && !isLoading && !isTyping
                 ? Center(
@@ -210,7 +223,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                             style: TextStyle(color: Colors.grey, fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 5),
-                          const Text("Bir konu at, yesinler birbirlerini...", style: TextStyle(color: Colors.grey)),
+                          const Text("Kaos başlatmak için bir şeyler yaz...", style: TextStyle(color: Colors.grey)),
                         ],
                       ),
                     ),
@@ -228,7 +241,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                   ),
           ),
 
-          // --- Yükleniyor Çubuğu ---
           if (isLoading)
             const LinearProgressIndicator(
               color: Color(0xFF6C63FF), 
@@ -236,7 +248,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               minHeight: 2,
             ),
 
-          // --- Alt Bar (Input) ---
           Container(
             padding: const EdgeInsets.all(16),
             decoration: const BoxDecoration(
@@ -245,7 +256,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             ),
             child: Column(
               children: [
-                // Resim Önizleme
                 if (_selectedImage != null)
                   Container(
                     height: 80,
@@ -274,7 +284,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ),
 
-                // Yazı Alanı
                 Row(
                   children: [
                     IconButton(
@@ -322,8 +331,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMessageBubble(dynamic msg) {
-    final role = msg['karakter'];
-    final text = msg['mesaj'];
+    final role = msg['karakter'] ?? "Bilinmeyen";
+    final text = msg['mesaj'] ?? "...";
     final color = getRoleColor(role);
 
     return Padding(
@@ -331,20 +340,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
           Container(
             width: 40,
             height: 40,
             decoration: BoxDecoration(
-              color: role.contains("Grok") ? Colors.white : color.withOpacity(0.2), // Grok için özel zemin
+              color: role.toLowerCase().contains("grok") ? Colors.white : color.withOpacity(0.2),
               shape: BoxShape.circle,
               border: Border.all(color: color, width: 1.5),
             ),
             child: Center(child: getRoleIcon(role)),
           ),
           const SizedBox(width: 12),
-          
-          // Balon
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
