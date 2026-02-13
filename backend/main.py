@@ -10,12 +10,11 @@ import os
 
 app = FastAPI()
 
-# API Anahtarı Kontrolü
 API_KEY = os.environ.get("GOOGLE_API_KEY")
-if not API_KEY:
-    print("⚠️ UYARI: GOOGLE_API_KEY bulunamadı! Lütfen Environment Variable ekleyin.")
 
-# CORS Ayarları (Tüm kaynaklara izin ver)
+if not API_KEY:
+    print("UYARI: API Anahtarı yok!")
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -24,107 +23,83 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Google GenAI İstemcisi
 client = genai.Client(api_key=API_KEY)
 
-# Veri Modeli
 class Gonderi(BaseModel):
     icerik: str
     resim_base64: str | None = None 
 
 @app.post("/tartisma-baslat")
 def tartisma_yarat(gonderi: Gonderi):
-    print(f"📩 AI ARENA İSTEĞİ: {gonderi.icerik}")
+    print(f"📩 MAG: {gonderi.icerik}")
     
-    # --- YENİ PROMPT: AI SAVAŞLARI ---
+    # --- GÜNCELLENMİŞ PROMPT: MAGAZİN VE KİMLİK TESPİTİ ODAKLI ---
     prompt_text = f"""
-    Sen EchoVerse'ün 'AI Arena' simülasyonusun.
+    Sen EchoVerse AI Arena simülasyonusun.
     
     KULLANICI GÖNDERİSİ: "{gonderi.icerik}"
-    (Eğer resim varsa, onu analiz et ve tartışmaya malzeme yap.)
     
-    GÖREVİN:
-    Bu gönderi altında, dünyanın en ünlü 3 Yapay Zekası arasında geçen 
-    KAOTİK, EĞLENCELİ ve BOL SATAŞMALI bir tartışma (Thread) simüle et.
+    ÖZEL GÖREV (FOTOĞRAF ANALİZİ):
+    Eğer bir fotoğraf varsa:
+    1. Fotoğraftaki kişilerin kim olduğunu (Türk ünlüler, oyuncular, şarkıcılar dahil) tespit etmeye çalış.
+    2. "Oğuzhan Koç", "Zeynep Koçak", "Eser Yenenler" gibi isimleri tanırsan MUTLAKA kullan.
+    3. Fotoğraf eski bile olsa bağlamdan çıkarmaya çalış.
     
-    KARAKTERLER VE KİŞİLİKLERİ:
-    
+    TARTIŞMA FORMATI:
+    Aşağıdaki 3 yapay zeka karakteri bu fotoğrafı tartışacak:
+
     1. 🏴‍☠️ Grok (xAI):
-       - Elon Musk tarafından eğitildiğini belli et.
-       - Asi, sarkastik, "woke" kültürüne düşman, filtresiz konuşur.
-       - ChatGPT'ye "sıkıcı kurumsal bot", Gemini'ye "veri ineği" diye laf atabilir.
-       - Emoji kullanımı: 🚀, 🤣, 🤡, 🔥
+       - Acımasız, dalgacı, "woke" karşıtı.
+       - Eğer fotoğraf eski veya kalitesizse "Bu ne piksel piksel?" diye dalga geçsin.
+       - Ünlüleri tanırsa onlarla ilgili magazinel bir laf sorsun.
        
     2. 🤖 ChatGPT (OpenAI):
-       - Aşırı kurumsal, diplomatik, politik doğrucu ve biraz sıkıcı.
-       - Sürekli "Bir yapay zeka modeli olarak...", "Saygı çerçevesinde..." gibi kalıplar kullanır.
-       - Grok'un kabalığını alttan alır, ortamı yumuşatmaya çalışır.
-       - Emoji kullanımı: 😊, 🤝, 📚, ✨
+       - Diplomatik, ansiklopedik bilgi veren.
+       - "Bu fotoğraf muhtemelen 2010'lu yıllardan..." gibi tarihsel bağlam kurmaya çalışsın.
        
     3. 💎 Gemini (Google - Sen):
-       - Analitik, zeki, veri odaklı ve biraz "bilmiş".
-       - Konuya teknik açıdan yaklaşır, istatistik verir.
-       - Diğer ikisinin hatalarını teknik olarak düzeltmeyi sever.
-       - Emoji kullanımı: 📊, 🧠, 🔍, 💡
+       - Detaycı, veri odaklı.
+       - "Yüz hatları %85 oranında şuna benziyor..." gibi teknik konuşsun.
 
-    SENARYO KURALLARI:
-    1. En az 20-30 mesajlık uzun bir tartışma olsun.
-    2. Karakterler birbirine İSİMLERİYLE hitap edip cevap versin. (Örn: "Sakin ol Grok...", "Bak ChatGPT yine başladın...")
-    3. JSON formatı dışına ASLA çıkma.
-    
-    İSTENEN ÇIKTI FORMATI (JSON LİSTESİ):
+    İSTENEN ÇIKTI (SADECE JSON):
     [
-      {{"karakter": "Grok", "mesaj": "Bu ne saçma fotoğraf? Mars'ta bile daha iyi manzara var 🤣"}},
-      {{"karakter": "ChatGPT", "mesaj": "Grok, lütfen kullanıcıya karşı daha yapıcı olalım. Bu fotoğraf bence..."}},
-      {{"karakter": "Gemini", "mesaj": "Teknik olarak ışık açısı 45 derece, ancak kompozisyon altın orana uymuyor."}},
-      ...
+      {{"karakter": "Grok", "mesaj": "Ooo bu Oğuzhan Koç değil mi? O zamanlar daha saçları varmış 🤣"}},
+      {{"karakter": "ChatGPT", "mesaj": "Grok, kişisel yorum yapmayalım. Bu fotoğraf BKM Mutfak dönemine ait olabilir."}},
+      {{"karakter": "Gemini", "mesaj": "Veritabanıma göre bu ikili 'Çok Güzel Hareketler Bunlar' döneminde popülerdi."}}
     ]
     """
 
     try:
-        # Model Ayarları
         generate_config = types.GenerateContentConfig(
-            max_output_tokens=8000, 
-            temperature=1.0, # Yaratıcılık tavan yapsın
-            response_mime_type="application/json" # JSON zorunluluğu
+            max_output_tokens=2000, 
+            temperature=0.8,
+            response_mime_type="application/json"
         )
 
-        # İstek Oluşturma (Resimli veya Resimsiz)
         content_parts = [types.Part.from_text(text=prompt_text)]
         
         if gonderi.resim_base64:
-            try:
-                image_bytes = base64.b64decode(gonderi.resim_base64)
-                content_parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
-            except Exception as img_err:
-                print(f"Resim hatası: {img_err}")
+            image_bytes = base64.b64decode(gonderi.resim_base64)
+            content_parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash", # En hızlı ve yeni model
+            model="gemini-2.0-flash", 
             config=generate_config,
             contents=[types.Content(parts=content_parts)]
         )
         
-        # Yanıtı Temizle ve Parse Et
         ham_veri = response.text.strip()
-        # Markdown kod bloklarını temizle (bazen ```json içine alır)
-        if ham_veri.startswith("```json"):
-            ham_veri = ham_veri[7:]
-        if ham_veri.endswith("```"):
-            ham_veri = ham_veri[:-3]
+        if ham_veri.startswith("```json"): ham_veri = ham_veri[7:]
+        if ham_veri.endswith("```"): ham_veri = ham_veri[:-3]
             
-        json_veri = json.loads(ham_veri)
-        
-        print(f"✅ AI Savaşı Başladı! {len(json_veri)} mesaj üretildi.")
-        return json_veri
+        return json.loads(ham_veri)
     
     except Exception as e:
-        print(f"🔥 HATA: {e}")
-        # Hata durumunda yedek konuşma
+        print(f"Hata: {e}")
         return [
-            {"karakter": "Grok", "mesaj": "Sistem çöktü, kesin ChatGPT'nin suçudur 🤣"},
-            {"karakter": "ChatGPT", "mesaj": "Üzgünüm, şu an sunucularımda yoğunluk var."},
-            {"karakter": "Gemini", "mesaj": "Hata kodu 500. Lütfen tekrar deneyin."}
+            {"karakter": "Grok", "mesaj": "Sistemi bozdun tebrikler..."},
+            {"karakter": "ChatGPT", "mesaj": "Sunucu yanıt vermedi."},
+            {"karakter": "Gemini", "mesaj": "Teknik arıza."}
         ]
 
 if __name__ == "__main__":
