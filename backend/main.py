@@ -12,9 +12,11 @@ app = FastAPI()
 
 API_KEY = os.environ.get("GOOGLE_API_KEY")
 
+# API Anahtarı kontrolü
 if not API_KEY:
-    print("UYARI: API Anahtarı bulunamadı!")
+    print("UYARI: API Anahtarı bulunamadı! Environment Variable kontrol edin.")
 
+# CORS Ayarları
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,23 +33,24 @@ class Gonderi(BaseModel):
 
 @app.post("/tartisma-baslat")
 def tartisma_yarat(gonderi: Gonderi):
-    # DİKKAT: Loglarda bu yazıyı görmeliyiz!
-    print(f"📩 MAG MODU: {gonderi.icerik}")
+    print(f"📩 SAĞLAM MOD (1.5 Flash): {gonderi.icerik}")
     
+    # --- PROMPT: AI ARENA & MAGAZİN ---
     prompt_text = f"""
-    Sen EchoVerse AI Arena simülasyonusun.
+    Sen EchoVerse sosyal medya simülasyonusun.
     
     KULLANICI GÖNDERİSİ: "{gonderi.icerik}"
     
     ÖZEL GÖREV (FOTOĞRAF ANALİZİ):
     Eğer bir fotoğraf varsa:
-    1. Fotoğraftaki kişilerin kim olduğunu (Türk ünlüler, oyuncular dahil) tespit etmeye çalış.
-    2. Eğer tanırsan İSİMLERİNİ KULLANARAK yorum yap.
+    1. Fotoğraftaki kişilerin kim olduğunu (Türk ünlüler, oyuncular, fenomenler dahil) tespit etmeye çalış.
+    2. Eğer tanırsan İSİMLERİNİ KULLANARAK yorum yap. (Örn: "Bu Oğuzhan Koç değil mi?")
+    3. Fotoğraf eskiyse nostalji yap.
     
     KARAKTERLER:
-    1. 🏴‍☠️ Grok (xAI): Magazinel, alaycı, sivri dilli. (Örn: "Oğuzhan Koç mu o? Eski hali daha iyiydi.")
-    2. 🤖 ChatGPT (OpenAI): Diplomatik, tarihsel bilgi veren. (Örn: "Bu fotoğraf 2010'lu yıllardan olabilir.")
-    3. 💎 Gemini (Google): Veri odaklı, detaycı. (Örn: "Yüz hatları %90 oranında Zeynep Koçak ile eşleşiyor.")
+    1. 🏴‍☠️ Grok (xAI): Magazinel, alaycı, sivri dilli. (Örn: "Zeynep Koçak ile Oğuzhan Koç mu? O zamanlar iyiydi...")
+    2. 🤖 ChatGPT (OpenAI): Diplomatik, tarihsel bilgi veren. (Örn: "Bu fotoğraf muhtemelen BKM Mutfak dönemine ait.")
+    3. 💎 Gemini (Google): Veri odaklı, detaycı. (Örn: "Görsel analize göre yıl 2010 civarı.")
 
     İSTENEN ÇIKTI (SADECE JSON LİSTESİ):
     [
@@ -70,8 +73,10 @@ def tartisma_yarat(gonderi: Gonderi):
             image_bytes = base64.b64decode(gonderi.resim_base64)
             content_parts.append(types.Part.from_bytes(data=image_bytes, mime_type="image/jpeg"))
 
+        # --- İŞTE O SAĞLAM MODEL: gemini-1.5-flash ---
+        # (gemini-flash-latest yerine direkt sürüm adını yazmak daha garantidir)
         response = client.models.generate_content(
-            model="gemini-2.0-flash", 
+            model="gemini-1.5-flash", 
             config=generate_config,
             contents=[types.Content(parts=content_parts)]
         )
@@ -85,9 +90,9 @@ def tartisma_yarat(gonderi: Gonderi):
     except Exception as e:
         print(f"Hata: {e}")
         return [
-            {"karakter": "Grok", "mesaj": "Sunucu hatası, kesin ChatGPT kablosuna bastı."},
-            {"karakter": "ChatGPT", "mesaj": "Üzgünüm, bir sorun oluştu."},
-            {"karakter": "Gemini", "mesaj": "Hata kodu: 500."}
+            {"karakter": "Grok", "mesaj": "Sistemde ufak bir arıza var ama ben buradayım!"},
+            {"karakter": "ChatGPT", "mesaj": "Sunucularımız şu an yoğun, lütfen tekrar deneyin."},
+            {"karakter": "Gemini", "mesaj": "Bağlantı hatası tespit edildi. (Kod: 1.5)"}
         ]
 
 if __name__ == "__main__":
