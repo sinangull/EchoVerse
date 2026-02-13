@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math'; // Rastgelelik için ekledik
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter_tts/flutter_tts.dart'; // Seslendirme Paketi
 
 void main() {
   runApp(const EchoVerseApp());
@@ -42,31 +43,98 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FlutterTts flutterTts = FlutterTts(); // Seslendirme nesnesi
   
   bool isLoading = false;
   bool isTyping = false;
+  bool isMuted = false; // Sesi kapatıp açmak için
+  bool showVoting = false; // Oylama butonlarını göstermek için
   String? currentTypingRole;
   
   List<dynamic> messages = [];
-  
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage; 
 
-  // --- Yardımcı: Karakter Renkleri ---
+  // --- RASTGELE KONU LİSTESİ (ZAR ÖZELLİĞİ) ---
+  final List<String> randomTopics = [
+    "Pizzaya ananas konur mu?",
+    "Yapay zeka dünyayı ele geçirecek mi?",
+    "Menemen soğanlı mı olur soğansız mı?",
+    "Elon Musk vs Mark Zuckerberg kafes dövüşü?",
+    "Matrix'te mi yaşıyoruz?",
+    "Kediler aslında uzaylı mı?",
+    "Tavuk mu yumurtadan, yumurta mı tavuktan?",
+    "iOS mu Android mi?",
+    "Marvel mı DC mi?",
+    "Lahmacun elle mi yenir çatal bıçakla mı?",
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+  }
+
+  // --- SESLENDİRME AYARLARI ---
+  Future<void> _initTts() async {
+    await flutterTts.setLanguage("tr-TR");
+    await flutterTts.setPitch(1.0);
+    await flutterTts.setSpeechRate(0.9);
+    await flutterTts.awaitSpeakCompletion(true); // Konuşma bitmesini bekle
+  }
+
+  Future<void> _speak(String text, String role) async {
+    if (isMuted) return;
+
+    // Karakterlere göre ses tonu ayarı
+    double pitch = 1.0;
+    double rate = 0.9;
+
+    if (role.toLowerCase().contains("grok")) {
+      pitch = 0.8; // Daha kalın
+      rate = 1.1;  // Daha hızlı ve agresif
+    } else if (role.toLowerCase().contains("chatgpt")) {
+      pitch = 1.0; // Standart
+      rate = 0.85; // Sakin, yavaş
+    } else if (role.toLowerCase().contains("gemini")) {
+      pitch = 1.2; // Biraz daha ince/teknik
+      rate = 1.0;  // Normal
+    }
+
+    await flutterTts.setPitch(pitch);
+    await flutterTts.setSpeechRate(rate);
+    await flutterTts.speak(text);
+  }
+
+  // --- ZAR ATMA FONKSİYONU ---
+  void rollDice() {
+    final random = Random();
+    String topic = randomTopics[random.nextInt(randomTopics.length)];
+    _controller.text = topic;
+  }
+
+  // --- OYLAMA SONUCU ---
+  void voteWinner(String winner) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("👑 Kazanan seçildi: $winner! Konfetiler patlıyor! 🎉"),
+        backgroundColor: Colors.amber,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    // Oylama bitince butonları kaldırabiliriz veya bırakabiliriz.
+    // setState(() => showVoting = false); 
+  }
+
   Color getRoleColor(String? role) {
     if (role == null) return Colors.grey;
     String r = role.toLowerCase();
-    
     if (r.contains("grok")) return const Color(0xFFFFFFFF);
     if (r.contains("chatgpt")) return const Color(0xFF10A37F);
     if (r.contains("gemini")) return const Color(0xFF4285F4);
-    
-    if (r.contains("destekçi")) return Colors.greenAccent;
-    if (r.contains("karşıt")) return Colors.redAccent;
     return Colors.purpleAccent;
   }
 
-  // --- Yardımcı: Karakter İkonları ---
   Widget getRoleIcon(String? role) {
     String r = role?.toLowerCase() ?? "";
     if (r.contains("grok")) return const Icon(Icons.close, color: Colors.black, size: 20);
@@ -104,6 +172,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     setState(() {
       isLoading = true;
+      showVoting = false; // Yeni tartışma başlayınca oylamayı gizle
       messages = [];
       _controller.clear();   
       _selectedImage = null; 
@@ -138,7 +207,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           isLoading = false;
         });
 
-        // --- SİNEMATİK AKIŞ DÖNGÜSÜ (YAVAŞLATILMIŞ VERSİYON) ---
         for (var msg in incomingMessages) {
           if (!mounted) return;
 
@@ -148,22 +216,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           });
           _scrollToBottom();
 
-          // --- YENİ HIZ AYARI BURADA ---
-          String mesajMetni = msg['mesaj'].toString();
-          
-          // Karakter başına 60ms (Eskiden 40ms idi) -> Daha yavaş okuma
-          int beklemeSuresi = mesajMetni.length * 60; 
-          
-          // Rastgelelik ekle (Her mesaj robot gibi aynı hızda gelmesin)
-          // 0 ile 1000ms arasında rastgele bir süre ekliyoruz.
-          beklemeSuresi += Random().nextInt(1000);
+          // --- SESLENDİRME BURADA BAŞLIYOR ---
+          // Konuşma sürerken bekleme yapacağız, böylece ses bitmeden diğerine geçmez.
+          if (!isMuted) {
+             _speak(msg['mesaj'], msg['karakter']);
+          }
 
-          // Minimum bekleme: 2 saniye (Okumaya vakit kalsın)
+          // Okuma hızı simülasyonu (Ses kapalıysa veya ses yüklenirken)
+          String mesajMetni = msg['mesaj'].toString();
+          int beklemeSuresi = mesajMetni.length * 50 + Random().nextInt(1000);
           if (beklemeSuresi < 2000) beklemeSuresi = 2000;
           
-          // Maksimum bekleme: 6 saniye (Çok da baymasın)
-          if (beklemeSuresi > 6000) beklemeSuresi = 6000;
-
+          // Eğer ses açıksak, Future.wait ile hem sesin bitmesini hem süreyi bekleyebiliriz
+          // Ama basitlik adına sadece süreyi bekletelim şimdilik.
           await Future.delayed(Duration(milliseconds: beklemeSuresi));
 
           if (!mounted) return;
@@ -173,9 +238,14 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           });
           _scrollToBottom();
           
-          // İki mesaj arasında da minik bir nefes payı (500ms ile 1000ms arası)
           await Future.delayed(Duration(milliseconds: 500 + Random().nextInt(500))); 
         }
+
+        // Tartışma bitti, oylamayı göster
+        setState(() {
+          showVoting = true;
+        });
+        _scrollToBottom();
 
       } else {
         if (!mounted) return;
@@ -205,6 +275,24 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             Text("AI ARENA", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           ],
         ),
+        actions: [
+          // ZAR BUTONU (RASTGELE KONU)
+          IconButton(
+            icon: const Icon(Icons.casino, color: Colors.orangeAccent),
+            tooltip: "Rastgele Konu",
+            onPressed: (isLoading || isTyping) ? null : rollDice,
+          ),
+          // SES AÇMA/KAPAMA BUTONU
+          IconButton(
+            icon: Icon(isMuted ? Icons.volume_off : Icons.volume_up, color: isMuted ? Colors.grey : Colors.greenAccent),
+            onPressed: () {
+              setState(() {
+                isMuted = !isMuted;
+                if (isMuted) flutterTts.stop();
+              });
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -231,11 +319,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                    itemCount: messages.length + (isTyping ? 1 : 0),
+                    itemCount: messages.length + (isTyping ? 1 : 0) + (showVoting ? 1 : 0),
                     itemBuilder: (context, index) {
+                      // Oylama Bölümü (Listenin en sonu)
+                      if (showVoting && index == messages.length + (isTyping ? 1 : 0)) {
+                        return _buildVotingSection();
+                      }
+                      // Yazıyor İndikatörü
                       if (isTyping && index == messages.length) {
                         return _buildTypingIndicator();
                       }
+                      // Normal Mesaj
                       return _buildMessageBubble(messages[index]);
                     },
                   ),
@@ -330,6 +424,53 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
+  // --- OYLAMA WIDGET'I ---
+  Widget _buildVotingSection() {
+    return Container(
+      margin: const EdgeInsets.only(top: 20, bottom: 20),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF252525),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "🏆 BU TARTIŞMAYI KİM KAZANDI?",
+            style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, letterSpacing: 1),
+          ),
+          const SizedBox(height: 15),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _votingButton("Grok", Colors.white),
+              _votingButton("ChatGPT", const Color(0xFF10A37F)),
+              _votingButton("Gemini", const Color(0xFF4285F4)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _votingButton(String name, Color color) {
+    return GestureDetector(
+      onTap: () => voteWinner(name),
+      child: Column(
+        children: [
+          CircleAvatar(
+            backgroundColor: color.withOpacity(0.2),
+            radius: 25,
+            child: getRoleIcon(name),
+          ),
+          const SizedBox(height: 8),
+          Text(name, style: TextStyle(color: color, fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageBubble(dynamic msg) {
     final role = msg['karakter'] ?? "Bilinmeyen";
     final text = msg['mesaj'] ?? "...";
@@ -415,7 +556,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
              child: Center(child: getRoleIcon(currentTypingRole)),
           ),
           Text(
-            "$currentTypingRole yanıtlıyor...",
+            "$currentTypingRole yazıyor...",
             style: TextStyle(color: color, fontStyle: FontStyle.italic, fontSize: 12),
           ),
         ],
