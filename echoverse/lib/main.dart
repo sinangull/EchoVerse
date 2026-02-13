@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter_tts/flutter_tts.dart'; // Seslendirme Paketi
+import 'package:flutter_tts/flutter_tts.dart';
 
 void main() {
   runApp(const EchoVerseApp());
@@ -43,19 +43,18 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final FlutterTts flutterTts = FlutterTts(); // Seslendirme nesnesi
+  final FlutterTts flutterTts = FlutterTts();
   
   bool isLoading = false;
   bool isTyping = false;
-  bool isMuted = false; // Sesi kapatıp açmak için
-  bool showVoting = false; // Oylama butonlarını göstermek için
+  bool isMuted = false;
+  bool showVoting = false;
   String? currentTypingRole;
   
   List<dynamic> messages = [];
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage; 
 
-  // --- RASTGELE KONU LİSTESİ (ZAR ÖZELLİĞİ) ---
   final List<String> randomTopics = [
     "Pizzaya ananas konur mu?",
     "Yapay zeka dünyayı ele geçirecek mi?",
@@ -75,45 +74,49 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _initTts();
   }
 
-  // --- SESLENDİRME AYARLARI ---
   Future<void> _initTts() async {
     await flutterTts.setLanguage("tr-TR");
+    // iOS ve Android için konuşma bitmesini bekleme ayarı
+    await flutterTts.awaitSpeakCompletion(true);
+    
+    // Ses motorunun hazır olduğundan emin olalım
+    await flutterTts.setSpeechRate(0.5); 
+    await flutterTts.setVolume(1.0);
     await flutterTts.setPitch(1.0);
-    await flutterTts.setSpeechRate(0.9);
-    await flutterTts.awaitSpeakCompletion(true); // Konuşma bitmesini bekle
   }
 
+  // --- GELİŞMİŞ SES AYARLARI ---
   Future<void> _speak(String text, String role) async {
     if (isMuted) return;
 
-    // Karakterlere göre ses tonu ayarı
     double pitch = 1.0;
-    double rate = 0.9;
+    double rate = 0.5; // Web'de 0.5 normal hızdır (0.0 - 1.0 arası)
 
+    // Karakterlere göre RADİKAL ses değişiklikleri
     if (role.toLowerCase().contains("grok")) {
-      pitch = 0.8; // Daha kalın
-      rate = 1.1;  // Daha hızlı ve agresif
+      pitch = 0.5; // ÇOK KALIN (Erkek Sesi Gibi)
+      rate = 0.6;  // Biraz hızlı
     } else if (role.toLowerCase().contains("chatgpt")) {
-      pitch = 1.0; // Standart
-      rate = 0.85; // Sakin, yavaş
+      pitch = 1.0; // NORMAL (Haber spikeri gibi)
+      rate = 0.45; // Yavaş ve sakin
     } else if (role.toLowerCase().contains("gemini")) {
-      pitch = 1.2; // Biraz daha ince/teknik
-      rate = 1.0;  // Normal
+      pitch = 1.6; // İNCE (Robotik/Kadın sesi gibi)
+      rate = 0.55; // Orta hızlı
     }
 
     await flutterTts.setPitch(pitch);
     await flutterTts.setSpeechRate(rate);
+    
+    // Konuş ve BİTMESİNİ BEKLE (await burada kritik)
     await flutterTts.speak(text);
   }
 
-  // --- ZAR ATMA FONKSİYONU ---
   void rollDice() {
     final random = Random();
     String topic = randomTopics[random.nextInt(randomTopics.length)];
     _controller.text = topic;
   }
 
-  // --- OYLAMA SONUCU ---
   void voteWinner(String winner) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -122,8 +125,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         duration: const Duration(seconds: 2),
       ),
     );
-    // Oylama bitince butonları kaldırabiliriz veya bırakabiliriz.
-    // setState(() => showVoting = false); 
   }
 
   Color getRoleColor(String? role) {
@@ -172,7 +173,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
     setState(() {
       isLoading = true;
-      showVoting = false; // Yeni tartışma başlayınca oylamayı gizle
+      showVoting = false;
       messages = [];
       _controller.clear();   
       _selectedImage = null; 
@@ -207,41 +208,43 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           isLoading = false;
         });
 
+        // --- TAM SENKRON AKIŞ ---
         for (var msg in incomingMessages) {
           if (!mounted) return;
 
+          // 1. Önce "Yazıyor..." göster
           setState(() {
             isTyping = true;
             currentTypingRole = msg['karakter'];
           });
           _scrollToBottom();
 
-          // --- SESLENDİRME BURADA BAŞLIYOR ---
-          // Konuşma sürerken bekleme yapacağız, böylece ses bitmeden diğerine geçmez.
-          if (!isMuted) {
-             _speak(msg['mesaj'], msg['karakter']);
-          }
+          // Kısa bir yapay "düşünme" süresi (Doğallık için)
+          await Future.delayed(Duration(milliseconds: 500 + Random().nextInt(500)));
 
-          // Okuma hızı simülasyonu (Ses kapalıysa veya ses yüklenirken)
-          String mesajMetni = msg['mesaj'].toString();
-          int beklemeSuresi = mesajMetni.length * 50 + Random().nextInt(1000);
-          if (beklemeSuresi < 2000) beklemeSuresi = 2000;
-          
-          // Eğer ses açıksak, Future.wait ile hem sesin bitmesini hem süreyi bekleyebiliriz
-          // Ama basitlik adına sadece süreyi bekletelim şimdilik.
-          await Future.delayed(Duration(milliseconds: beklemeSuresi));
-
-          if (!mounted) return;
+          // 2. Mesaj balonunu ekrana BAS (Ama ses henüz başlamadı)
           setState(() {
             isTyping = false;
             messages.add(msg);
           });
           _scrollToBottom();
+
+          // 3. ŞİMDİ KONUŞ (Ve bitene kadar bekle)
+          // Burada await kullanarak kodun aşağı inmesini engelliyoruz.
+          if (!isMuted) {
+             await _speak(msg['mesaj'], msg['karakter']);
+          } else {
+             // Ses kapalıysa okuma süresi kadar bekle
+             String mesajMetni = msg['mesaj'].toString();
+             int okumaSuresi = mesajMetni.length * 60;
+             if (okumaSuresi < 2000) okumaSuresi = 2000;
+             await Future.delayed(Duration(milliseconds: okumaSuresi));
+          }
           
-          await Future.delayed(Duration(milliseconds: 500 + Random().nextInt(500))); 
+          // Konuşma bittikten sonra diğer karaktere geçmeden önce minik bir nefes
+          await Future.delayed(const Duration(milliseconds: 500));
         }
 
-        // Tartışma bitti, oylamayı göster
         setState(() {
           showVoting = true;
         });
@@ -276,13 +279,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           ],
         ),
         actions: [
-          // ZAR BUTONU (RASTGELE KONU)
           IconButton(
             icon: const Icon(Icons.casino, color: Colors.orangeAccent),
             tooltip: "Rastgele Konu",
             onPressed: (isLoading || isTyping) ? null : rollDice,
           ),
-          // SES AÇMA/KAPAMA BUTONU
           IconButton(
             icon: Icon(isMuted ? Icons.volume_off : Icons.volume_up, color: isMuted ? Colors.grey : Colors.greenAccent),
             onPressed: () {
@@ -321,15 +322,12 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                     itemCount: messages.length + (isTyping ? 1 : 0) + (showVoting ? 1 : 0),
                     itemBuilder: (context, index) {
-                      // Oylama Bölümü (Listenin en sonu)
                       if (showVoting && index == messages.length + (isTyping ? 1 : 0)) {
                         return _buildVotingSection();
                       }
-                      // Yazıyor İndikatörü
                       if (isTyping && index == messages.length) {
                         return _buildTypingIndicator();
                       }
-                      // Normal Mesaj
                       return _buildMessageBubble(messages[index]);
                     },
                   ),
@@ -424,7 +422,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     );
   }
 
-  // --- OYLAMA WIDGET'I ---
   Widget _buildVotingSection() {
     return Container(
       margin: const EdgeInsets.only(top: 20, bottom: 20),
