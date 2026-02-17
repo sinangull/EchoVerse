@@ -16,10 +16,12 @@ dependencies:
   image_picker: ^1.1.2
   flutter_tts: ^3.8.5
 
-  # --- YENİ GÖRSEL PAKETLER ---
-  # Sürümü 6.1.0'a çektik ki hata vermesin
+  # Görsel paketler
   google_fonts: ^6.1.0  
   animate_do: ^3.3.4
+
+  # --- YENİ: HAFIZA PAKETİ ---
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:

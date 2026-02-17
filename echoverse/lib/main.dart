@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui'; // Blur efekti için
+import 'dart:ui'; 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_fonts/google_fonts.dart'; 
 import 'package:animate_do/animate_do.dart';     
+import 'package:shared_preferences/shared_preferences.dart'; // Hafıza Paketi
 
 void main() {
   runApp(const EchoVerseApp());
@@ -66,25 +67,25 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   String? currentTypingRole;
   
   List<dynamic> messages = [];
+  List<dynamic> savedHistory = []; // Arşiv Listesi
+  
   final ImagePicker _picker = ImagePicker();
   XFile? _selectedImage; 
 
   bool _isDisposed = false;
+  String currentTopic = "Serbest Atış"; // Kaydederken başlık olsun diye
 
   final List<String> randomTopics = [
     "Pizzaya ananas konur mu?",
     "Yapay zeka dünyayı ele geçirecek mi?",
     "Menemen soğanlı mı olur soğansız mı?",
-    "Elon Musk vs Mark Zuckerberg kafes dövüşü?",
+    "Elon Musk vs Mark Zuckerberg?",
     "Matrix'te mi yaşıyoruz?",
     "Kediler aslında uzaylı mı?",
-    "Tavuk mu yumurtadan, yumurta mı tavuktan?",
     "iOS mu Android mi?",
     "Marvel mı DC mi?",
-    "Lahmacun elle mi yenir çatal bıçakla mı?",
   ];
 
-  // --- KARAKTER VERİTABANI ---
   final Map<String, Map<String, dynamic>> characterProfiles = {
     'Grok': {
       'title': 'KAOS ELÇİSİ',
@@ -119,6 +120,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _initTts();
+    _loadHistory(); // Açılışta geçmişi yükle
   }
 
   @override
@@ -132,6 +134,64 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     await flutterTts.setLanguage("tr-TR");
     await flutterTts.awaitSpeakCompletion(false);
   }
+
+  // --- HAFIZA (VERİTABANI) FONKSİYONLARI ---
+  Future<void> _loadHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? historyString = prefs.getString('echoverse_history');
+    if (historyString != null) {
+      setState(() {
+        savedHistory = jsonDecode(historyString);
+      });
+    }
+  }
+
+  Future<void> _saveCurrentArena() async {
+    if (messages.isEmpty) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Yeni kaydı oluştur
+    final newEntry = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'date': "${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}",
+      'topic': currentTopic.length > 30 ? "${currentTopic.substring(0, 30)}..." : currentTopic,
+      'messages': messages,
+    };
+
+    // Listenin başına ekle (En yeni en üstte olsun)
+    savedHistory.insert(0, newEntry);
+    
+    // Diske kaydet
+    await prefs.setString('echoverse_history', jsonEncode(savedHistory));
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("💾 Tartışma Arşive Kaydedildi!", style: GoogleFonts.orbitron(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.green,
+      ),
+    );
+  }
+
+  Future<void> _deleteHistoryEntry(String id) async {
+    savedHistory.removeWhere((element) => element['id'] == id);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('echoverse_history', jsonEncode(savedHistory));
+    setState(() {}); // Ekranı güncelle
+  }
+
+  void _loadSpecificArena(List<dynamic> pastMessages, String pastTopic) {
+    setState(() {
+      messages = List.from(pastMessages); // Eski mesajları ekrana bas
+      currentTopic = pastTopic;
+      showVoting = true; // Eski kavgada direkt oylama çıksın
+    });
+    Navigator.pop(context); // Çekmeceyi kapat
+    _scrollToBottom();
+  }
+
+  // ----------------------------------------
 
   Future<void> _speakSafe(String text, String role) async {
     if (isMuted || _isDisposed) return;
@@ -175,9 +235,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _controller.text = topic;
   }
 
-  // --- PROFİL GÖSTERME FONKSİYONU ---
   void showProfile(String role) {
-    // Karakter adını temizle (Emoji vs varsa)
     String cleanRole = "Bilinmeyen";
     if (role.toLowerCase().contains("grok")) cleanRole = "Grok";
     if (role.toLowerCase().contains("chatgpt")) cleanRole = "ChatGPT";
@@ -191,7 +249,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     showDialog(
       context: context,
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), // Arka planı bulanıklaştır
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), 
         child: Dialog(
           backgroundColor: Colors.transparent,
           child: ZoomIn(
@@ -202,14 +260,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 color: const Color(0xFF101015).withOpacity(0.95),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(color: color, width: 2),
-                boxShadow: [
-                  BoxShadow(color: color.withOpacity(0.3), blurRadius: 30, spreadRadius: 5)
-                ]
+                boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 30, spreadRadius: 5)]
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Avatar
                   Container(
                     padding: const EdgeInsets.all(5),
                     decoration: BoxDecoration(
@@ -224,21 +279,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(height: 15),
-                  
-                  // İsim ve Unvan
                   Text(cleanRole.toUpperCase(), style: GoogleFonts.orbitron(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2)),
                   Text(profile['title'], style: GoogleFonts.roboto(fontSize: 14, color: color, letterSpacing: 4, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 15),
-                  
-                  // Açıklama
-                  Text(
-                    profile['desc'], 
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white70, height: 1.4),
-                  ),
+                  Text(profile['desc'], textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, height: 1.4)),
                   const SizedBox(height: 20),
-
-                  // İstatistik Çubukları
                   ... (profile['stats'] as List).map((stat) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 6.0),
                     child: Column(
@@ -264,7 +309,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       ],
                     ),
                   )).toList(),
-
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -363,6 +407,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       isLoading = true;
       showVoting = false;
       messages = [];
+      currentTopic = promptText.isEmpty ? "Görsel Analizi" : promptText; // Başlığı kaydet
       _controller.clear();   
       _selectedImage = null; 
     });
@@ -445,6 +490,52 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true, 
+      
+      // SOL TARAFTA ÇIKAN ARŞİV MENÜSÜ (DRAWER)
+      drawer: Drawer(
+        backgroundColor: const Color(0xFF101015),
+        child: Column(
+          children: [
+            DrawerHeader(
+              decoration: BoxDecoration(
+                border: Border(bottom: BorderSide(color: Colors.white10)),
+                gradient: LinearGradient(colors: [const Color(0xFF6C63FF).withOpacity(0.2), Colors.transparent]),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.storage, size: 50, color: Color(0xFF00E5FF)),
+                    const SizedBox(height: 10),
+                    Text("ARENA ARŞİVİ", style: GoogleFonts.orbitron(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              child: savedHistory.isEmpty
+                ? const Center(child: Text("Henüz kaydedilmiş kavga yok.", style: TextStyle(color: Colors.grey)))
+                : ListView.builder(
+                    itemCount: savedHistory.length,
+                    itemBuilder: (context, index) {
+                      final item = savedHistory[index];
+                      return ListTile(
+                        leading: const Icon(Icons.history, color: Color(0xFF00FF9D)),
+                        title: Text(item['topic'], style: const TextStyle(color: Colors.white), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        subtitle: Text(item['date'], style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                          onPressed: () => _deleteHistoryEntry(item['id']),
+                        ),
+                        onTap: () => _loadSpecificArena(item['messages'], item['topic']),
+                      );
+                    },
+                  ),
+            )
+          ],
+        ),
+      ),
+      
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -455,11 +546,13 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
           ],
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.casino, color: Colors.orangeAccent),
-            tooltip: "Rastgele Konu",
-            onPressed: (isLoading || isTyping) ? null : rollDice,
-          ),
+          // KAYDETME BUTONU
+          if (messages.isNotEmpty && !isTyping)
+            IconButton(
+              icon: const Icon(Icons.save, color: Colors.white),
+              tooltip: "Tartışmayı Kaydet",
+              onPressed: _saveCurrentArena,
+            ),
           IconButton(
             icon: Icon(isMuted ? Icons.volume_off : Icons.volume_up, color: isMuted ? Colors.grey : const Color(0xFF00FF9D)),
             onPressed: () async {
@@ -516,7 +609,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       itemCount: messages.length + (isTyping ? 1 : 0) + (showVoting ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (showVoting && index == messages.length + (isTyping ? 1 : 0)) {
-                          return FadeInUp(child: _buildVotingSection()); // Oylama butonları da tıklanabilir
+                          return FadeInUp(child: _buildVotingSection()); 
                         }
                         if (isTyping && index == messages.length) {
                           return FadeIn(child: _buildTypingIndicator());
@@ -578,11 +671,17 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
                   Row(
                     children: [
+                      // Zar butonunu aşağıya aldık yer kaplamasın diye
+                      IconButton(
+                        icon: const Icon(Icons.casino, color: Colors.orangeAccent),
+                        tooltip: "Rastgele Konu",
+                        onPressed: (isLoading || isTyping) ? null : rollDice,
+                      ),
                       IconButton(
                         icon: Icon(Icons.add_photo_alternate, color: _selectedImage != null ? const Color(0xFF00FF9D) : Colors.grey),
                         onPressed: _pickImage,
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 5),
                       Expanded(
                         child: TextField(
                           controller: _controller,
@@ -666,8 +765,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Widget _votingButton(String name) {
-    // Burada da profile gitmek istersek diye GestureDetector'ı koruyabiliriz ama 
-    // şu an oylama yaptığı için sadece voteWinner'a gidiyor.
     Color color = getRoleColor(name);
     return GestureDetector(
       onTap: () => voteWinner(name),
@@ -705,9 +802,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // TIKLANABİLİR AVATAR (PROFİLİ AÇAR)
           GestureDetector(
-            onTap: () => showProfile(role), // <-- İŞTE SİHİR BURADA
+            onTap: () => showProfile(role),
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -728,7 +824,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                   onTap: () => showProfile(role), // İsime tıklayınca da açsın
+                   onTap: () => showProfile(role),
                    child: Text(
                     role.toUpperCase(), 
                     style: GoogleFonts.orbitron(
