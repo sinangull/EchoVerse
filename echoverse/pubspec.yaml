@@ -10,13 +10,15 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # Mevcut paketlerin
+  # Temel paketler
   cupertino_icons: ^1.0.6
   http: ^1.2.2
   image_picker: ^1.1.2
-
-  # --- YENİ EKLENEN: SESLENDİRME PAKETİ ---
   flutter_tts: ^3.8.5
+
+  # --- YENİ GÖRSEL PAKETLER ---
+  google_fonts: ^6.2.1  # Havalı yazı tipleri için
+  animate_do: ^3.3.4    # Animasyonlu girişler için
 
 dev_dependencies:
   flutter_test:
@@ -27,7 +29,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-# İkon ayarların (Aynen korundu)
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
