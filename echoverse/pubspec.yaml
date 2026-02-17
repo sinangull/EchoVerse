@@ -17,8 +17,9 @@ dependencies:
   flutter_tts: ^3.8.5
 
   # --- YENİ GÖRSEL PAKETLER ---
-  google_fonts: ^6.2.1  # Havalı yazı tipleri için
-  animate_do: ^3.3.4    # Animasyonlu girişler için
+  # Sürümü 6.1.0'a çektik ki hata vermesin
+  google_fonts: ^6.1.0  
+  animate_do: ^3.3.4
 
 dev_dependencies:
   flutter_test:
