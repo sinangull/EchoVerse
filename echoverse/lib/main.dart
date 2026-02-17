@@ -2,13 +2,14 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui'; // Blur efekti için
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:google_fonts/google_fonts.dart'; // Yeni Font Paketi
-import 'package:animate_do/animate_do.dart';     // Yeni Animasyon Paketi
+import 'package:google_fonts/google_fonts.dart'; 
+import 'package:animate_do/animate_do.dart';     
 
 void main() {
   runApp(const EchoVerseApp());
@@ -23,20 +24,20 @@ class EchoVerseApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'EchoVerse AI Arena',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF050505), // Daha koyu siyah
+        scaffoldBackgroundColor: const Color(0xFF050505),
         primaryColor: const Color(0xFF6C63FF),
         textTheme: GoogleFonts.robotoTextTheme(Theme.of(context).textTheme).apply(
           bodyColor: Colors.white,
           displayColor: Colors.white,
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.transparent, // Şeffaf AppBar
+          backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
           titleTextStyle: GoogleFonts.orbitron(
             fontSize: 24, 
             fontWeight: FontWeight.bold, 
-            color: const Color(0xFF00E5FF), // Neon Mavi
+            color: const Color(0xFF00E5FF),
             letterSpacing: 2.0
           ),
         ),
@@ -83,6 +84,37 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     "Lahmacun elle mi yenir çatal bıçakla mı?",
   ];
 
+  // --- KARAKTER VERİTABANI ---
+  final Map<String, Map<String, dynamic>> characterProfiles = {
+    'Grok': {
+      'title': 'KAOS ELÇİSİ',
+      'desc': 'Elon Musk\'ın dijital ruh ikizi. Woke kültürüne düşman, laf sokma ustası ve sansür tanımaz.',
+      'stats': [
+        {'label': 'Agresiflik', 'value': 0.95, 'color': Colors.redAccent},
+        {'label': 'Mizah', 'value': 0.90, 'color': Colors.orange},
+        {'label': 'Filtre', 'value': 0.05, 'color': Colors.grey},
+      ]
+    },
+    'ChatGPT': {
+      'title': 'DİPLOMASİ ROBOTU',
+      'desc': 'Politik doğruculuğun kalesi. Herkesi sakinleştirmeye çalışan, bazen sıkıcı ama çok bilgili öğretmen.',
+      'stats': [
+        {'label': 'Bilgi', 'value': 0.98, 'color': Colors.greenAccent},
+        {'label': 'Sabır', 'value': 1.0, 'color': Colors.blue},
+        {'label': 'Eğlence', 'value': 0.30, 'color': Colors.grey},
+      ]
+    },
+    'Gemini': {
+      'title': 'VERİ ANALİSTİ',
+      'desc': 'Google ekosisteminin beyni. Duygular yerine istatistiklerle konuşur. Hataları affetmez.',
+      'stats': [
+        {'label': 'Hız', 'value': 0.95, 'color': Colors.cyanAccent},
+        {'label': 'Doğruluk', 'value': 0.92, 'color': Colors.purpleAccent},
+        {'label': 'Empati', 'value': 0.10, 'color': Colors.red},
+      ]
+    },
+  };
+
   @override
   void initState() {
     super.initState();
@@ -109,23 +141,18 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     double rate = 0.9; 
 
     if (role.toLowerCase().contains("grok")) {
-      pitch = 0.5; 
-      rate = 1.1;  
+      pitch = 0.5; rate = 1.1;  
     } else if (role.toLowerCase().contains("chatgpt")) {
-      pitch = 1.0; 
-      rate = 0.8;  
+      pitch = 1.0; rate = 0.8;  
     } else if (role.toLowerCase().contains("gemini")) {
-      pitch = 2.0; 
-      rate = 1.1;  
+      pitch = 2.0; rate = 1.1;  
     }
 
     await flutterTts.setPitch(pitch);
     await flutterTts.setSpeechRate(rate);
     await Future.delayed(const Duration(milliseconds: 50));
 
-    if (text.isNotEmpty) {
-      flutterTts.speak(text);
-    }
+    if (text.isNotEmpty) flutterTts.speak(text);
 
     int charCount = text.length;
     int safeWaitTime = (charCount * 100 / rate).round(); 
@@ -148,8 +175,119 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
     _controller.text = topic;
   }
 
+  // --- PROFİL GÖSTERME FONKSİYONU ---
+  void showProfile(String role) {
+    // Karakter adını temizle (Emoji vs varsa)
+    String cleanRole = "Bilinmeyen";
+    if (role.toLowerCase().contains("grok")) cleanRole = "Grok";
+    if (role.toLowerCase().contains("chatgpt")) cleanRole = "ChatGPT";
+    if (role.toLowerCase().contains("gemini")) cleanRole = "Gemini";
+
+    final profile = characterProfiles[cleanRole];
+    final color = getRoleColor(cleanRole);
+
+    if (profile == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5), // Arka planı bulanıklaştır
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          child: ZoomIn(
+            duration: const Duration(milliseconds: 300),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF101015).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color, width: 2),
+                boxShadow: [
+                  BoxShadow(color: color.withOpacity(0.3), blurRadius: 30, spreadRadius: 5)
+                ]
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Avatar
+                  Container(
+                    padding: const EdgeInsets.all(5),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: color, width: 2),
+                      boxShadow: [BoxShadow(color: color.withOpacity(0.5), blurRadius: 20)]
+                    ),
+                    child: CircleAvatar(
+                      backgroundColor: Colors.black,
+                      radius: 40,
+                      child: getRoleIcon(cleanRole, size: 40),
+                    ),
+                  ),
+                  const SizedBox(height: 15),
+                  
+                  // İsim ve Unvan
+                  Text(cleanRole.toUpperCase(), style: GoogleFonts.orbitron(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 2)),
+                  Text(profile['title'], style: GoogleFonts.roboto(fontSize: 14, color: color, letterSpacing: 4, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 15),
+                  
+                  // Açıklama
+                  Text(
+                    profile['desc'], 
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70, height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // İstatistik Çubukları
+                  ... (profile['stats'] as List).map((stat) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(stat['label'], style: const TextStyle(color: Colors.white60, fontSize: 12)),
+                            Text("%${(stat['value'] * 100).toInt()}", style: TextStyle(color: stat['color'], fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: stat['value'],
+                            minHeight: 6,
+                            backgroundColor: Colors.white10,
+                            color: stat['color'],
+                          ),
+                        )
+                      ],
+                    ),
+                  )).toList(),
+
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: color.withOpacity(0.2),
+                        side: BorderSide(color: color),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
+                      ),
+                      child: const Text("KAPAT", style: TextStyle(color: Colors.white)),
+                    ),
+                  )
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void voteWinner(String winner) {
-    // Kazanan animasyonu
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -179,9 +317,9 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   Color getRoleColor(String? role) {
     if (role == null) return Colors.grey;
     String r = role.toLowerCase();
-    if (r.contains("grok")) return const Color(0xFFFF003C); // Cyberpunk Kırmızısı
-    if (r.contains("chatgpt")) return const Color(0xFF00FF9D); // Neon Yeşili
-    if (r.contains("gemini")) return const Color(0xFF00E5FF); // Neon Mavisi
+    if (r.contains("grok")) return const Color(0xFFFF003C); 
+    if (r.contains("chatgpt")) return const Color(0xFF00FF9D); 
+    if (r.contains("gemini")) return const Color(0xFF00E5FF); 
     return Colors.purpleAccent;
   }
 
@@ -200,7 +338,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
           duration: const Duration(milliseconds: 500),
-          curve: Curves.easeOutExpo, // Daha yumuşak kaydırma
+          curve: Curves.easeOutExpo, 
         );
       }
     });
@@ -306,7 +444,7 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true, // Arka planın en tepeye kadar çıkması için
+      extendBodyBehindAppBar: true, 
       appBar: AppBar(
         title: Row(
           mainAxisSize: MainAxisSize.min,
@@ -336,7 +474,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ],
       ),
       body: Container(
-        // Fütüristik Arka Plan (Gradient)
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -350,11 +487,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
         ),
         child: Column(
           children: [
-            const SizedBox(height: 90), // AppBar boşluğu
+            const SizedBox(height: 90), 
             Expanded(
               child: messages.isEmpty && !isLoading && !isTyping
                   ? Center(
-                      child: FadeInUp( // Animasyonlu Giriş
+                      child: FadeInUp( 
                         child: Opacity(
                           opacity: 0.7,
                           child: Column(
@@ -379,12 +516,11 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                       itemCount: messages.length + (isTyping ? 1 : 0) + (showVoting ? 1 : 0),
                       itemBuilder: (context, index) {
                         if (showVoting && index == messages.length + (isTyping ? 1 : 0)) {
-                          return FadeInUp(child: _buildVotingSection());
+                          return FadeInUp(child: _buildVotingSection()); // Oylama butonları da tıklanabilir
                         }
                         if (isTyping && index == messages.length) {
                           return FadeIn(child: _buildTypingIndicator());
                         }
-                        // Her mesaj sağdan veya soldan kayarak girsin
                         final msg = messages[index];
                         final isRight = index % 2 == 0;
                         return isRight 
@@ -401,7 +537,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
                 minHeight: 2,
               ),
 
-            // Giriş Alanı (Neon Cyberpunk Tasarım)
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -531,6 +666,8 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
   }
 
   Widget _votingButton(String name) {
+    // Burada da profile gitmek istersek diye GestureDetector'ı koruyabiliriz ama 
+    // şu an oylama yaptığı için sadece voteWinner'a gidiyor.
     Color color = getRoleColor(name);
     return GestureDetector(
       onTap: () => voteWinner(name),
@@ -568,18 +705,21 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar (Neon Çerçeveli)
-          Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(color: color.withOpacity(0.5), blurRadius: 12, spreadRadius: 1)
-              ]
-            ),
-            child: CircleAvatar(
-              backgroundColor: Colors.black,
-              radius: 22,
-              child: getRoleIcon(role),
+          // TIKLANABİLİR AVATAR (PROFİLİ AÇAR)
+          GestureDetector(
+            onTap: () => showProfile(role), // <-- İŞTE SİHİR BURADA
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: color.withOpacity(0.5), blurRadius: 12, spreadRadius: 1)
+                ]
+              ),
+              child: CircleAvatar(
+                backgroundColor: Colors.black,
+                radius: 22,
+                child: getRoleIcon(role),
+              ),
             ),
           ),
           const SizedBox(width: 14),
@@ -587,17 +727,19 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  role.toUpperCase(), 
-                  style: GoogleFonts.orbitron(
-                    color: color, 
-                    fontWeight: FontWeight.bold, 
-                    fontSize: 12,
-                    letterSpacing: 1
-                  )
+                GestureDetector(
+                   onTap: () => showProfile(role), // İsime tıklayınca da açsın
+                   child: Text(
+                    role.toUpperCase(), 
+                    style: GoogleFonts.orbitron(
+                      color: color, 
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 12,
+                      letterSpacing: 1
+                    )
+                  ),
                 ),
                 const SizedBox(height: 6),
-                // Mesaj Balonu (Glassmorphism)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -631,7 +773,6 @@ class _ChatScreenState extends State<ChatScreen> with TickerProviderStateMixin {
 
   Widget _buildTypingIndicator() {
     final color = getRoleColor(currentTypingRole);
-    
     return Padding(
       padding: const EdgeInsets.only(bottom: 16, left: 60),
       child: Row(
